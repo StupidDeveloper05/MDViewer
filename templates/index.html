@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>md viewer</title>
+
+    <link href="/static/stylesheets/style.css" rel="stylesheet">
+    <link href="/static/stylesheets/prism.css" rel="stylesheet" />
+	<link href="/static/stylesheets/github-markdown.css" rel="stylesheet">
+
+    <script src="/static/js/browser/diffDOM.js"></script>
+    <script src="/static/js/prism.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/remarkable/1.7.1/remarkable.min.js"></script>
+    <script>
+        function mdtohtml(row_text){
+            const md = new Remarkable();
+            return md.render(row_text);
+        }
+
+        function applyPrism(element) {
+            element.find("code").each(function(index, item) {
+                Prism.highlightElement(item);
+            });
+            element.find("code").removeClass('language-none');
+        }
+        function applyDiffDOM(element) {
+            var arr = document.getElementsByClassName("markdown-body");
+            var dd = new diffDOM.DiffDOM();
+            var diff = dd.diff(arr[arr.length - 1], element.get(0));
+            dd.apply(arr[arr.length - 1], diff);
+        }
+    </script>
+</head>
+<body>
+    <script>
+        document.addEventListener("DOMContentLoaded", function(){
+            var sock = io.connect('http://127.0.0.1:5000');
+            sock.on('message', function(msg){
+                if(msg.type === 'assistant'){
+                    if (msg.status === 'running'){
+                        var content = $('<div class="markdown-body">').html(mdtohtml(msg.md));
+                        applyPrism(content);
+                        applyDiffDOM(content);
+
+                        var data = {};
+                        data["html"] = content.html();
+                        data["status"] = "running";
+                        data["type"] = "backup";
+                        sock.send(data);
+                    }
+                    else if (msg.status === 'start'){
+                        var content = $('<div class="chatting-card"><div class="markdown-body">'+ mdtohtml(msg.md) + '</div></div>');
+                        applyPrism(content);
+                        $('#chatList').append(content);
+                        
+                        var data = {};
+                        data["html"] = content.html();
+                        data["status"] = "start";
+                        data["type"] = "backup";
+                        sock.send(data);
+                    }
+                    
+                }else{
+                    $('#chatList').append('<div class="markdown-body">'+ mdtohtml(msg.md) + '</div>');
+                }
+                console.log('Received Message : ' + msg.type);
+            });
+        });
+    </script>
+    <div id="chatList">
+        {% for html in Cache %}
+            <div class="chatting-card">
+                <div class="markdown-body">
+                    {{html|safe}}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
