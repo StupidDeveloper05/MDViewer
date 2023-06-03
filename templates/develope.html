@@ -21,72 +21,50 @@
     </script>
 </head>
 <body>
-    <div id="chatList">
-        {% for (owner, html) in Cache %}
-            {% if owner == "assistant"%}
-            <div class="chatting-card-assistant">
-                <div class="markdown-body">
-                    {{html|safe}}
-                </div>
-            </div>
-            {% else %}
-            <div class="right-align">
-                <div class="chatting-card-user">
-                    <pre class="anti-xss-pre">{{html}}</pre>
-                </div>
-            </div>
-            {% endif %}
-        {% endfor %}
-    </div>
+    <div id="chatList"></div>    
+    <script>
+        var arr = {{Data|tojson}};
+        arr.forEach((list, index) => {
+            if (list[0] == "assistant") {
+                var content = $('<div class="chatting-card-assistant"><div class="markdown-body">'+ mdtohtml(list[1]) +'</div></div>');
+                $('#chatList').append(content);
+            }
+            else {
+                $('#chatList').append($('<div class="right-align">').append($('<div class="chatting-card-user">').append($('<pre class="anti-xss-pre">').text(list[1]))));
+            }
+        });
+        $("code").each(function(index, item) {
+            Prism.highlightElement(item);
+        });
+        $("code").removeClass('language-none');
+        $('a').attr('target', '_blank');
+    </script>
     <script>
         document.addEventListener("DOMContentLoaded", function(){
-            var sock = io.connect('http://127.0.0.1:5000');
-            $('a').attr('target', '_blank');
-            $(window).on('scroll', function(){
-                console.log(window.scrollX, window.scrollY);
-            });
+            var sock = io.connect("http://" + document.domain + ":" + location.port);
             sock.on('message', function(msg){
-                if(msg.type === 'assistant'){
-                    if (msg.status === 'running'){
-                        var content = mdtohtml(msg.md);
-                        $(".markdown-body").last().html(content);
-
-                        var data = {};
-                        data["html"] = content;
-                        data["status"] = "running";
-                        data["type"] = "backup";
-                        data["owner"] = "assistant";
-                        sock.send(data);
+                if (msg.uuid == "{{UUID|safe}}")
+                {
+                    if(msg.type === 'assistant'){
+                        if (msg.status === 'running'){
+                            var content = mdtohtml(msg.msg);
+                            $(".markdown-body").last().html(content);
+                        }
+                        else if (msg.status === 'start'){
+                            var content = $('<div class="chatting-card-assistant"><div class="markdown-body">'+ mdtohtml(msg.msg) +'</div></div>');
+                            $('#chatList').append(content);
+                        }
+                        $(".markdown-body").last().find("code").each(function(index, item) {
+                            Prism.highlightElement(item);
+                        });
+                        $('a').attr('target', '_blank');
+                        $(".markdown-body").last().find("code").removeClass('language-none');
+                    }else{
+                        $('#chatList').append($('<div class="right-align">').append($('<div class="chatting-card-user">').append($('<pre class="anti-xss-pre">').text(msg.msg))));
                     }
-                    else if (msg.status === 'start'){
-                        var html = mdtohtml(msg.md);
-                        var content = $('<div class="chatting-card-assistant"><div class="markdown-body">'+ html +'</div></div>');
-                        $('#chatList').append(content);
-                        
-                        var data = {};
-                        data["html"] = content.html();
-                        data["status"] = "start";
-                        data["type"] = "backup";
-                        data["owner"] = "assistant";
-                        sock.send(data);
-                    }
-                    $(".markdown-body").last().find("code").each(function(index, item) {
-                        Prism.highlightElement(item);
-                    });
-                    $('a').attr('target', '_blank');
-                    $(".markdown-body").last().find("code").removeClass('language-none');
-                }else{
-                    $('#chatList').append($('<div class="right-align">').append($('<div class="chatting-card-user">').append($('<pre class="anti-xss-pre">').text(msg.msg))));
-
-                    var data = {};
-                    data["html"] = msg.msg;
-                    data["status"] = "start";
-                    data["type"] = "backup";
-                    data["owner"] = "user";
-                    sock.send(data);
+                    window.scrollTo({top: $("#chatList").prop('scrollHeight')});
+                    console.log('Received Message : ' + msg.type);
                 }
-                window.scrollTo({top: $("#chatList").prop('scrollHeight')});
-                console.log('Received Message : ' + msg.type);
             });
         });
     </script>
